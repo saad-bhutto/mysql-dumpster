@@ -1,0 +1,52 @@
+{
+    "name": "saad-bhutto/database-dump",
+    "description": "",
+    "keywords": [
+        "saad-bhutto",
+        "database-dump"
+    ],
+    "homepage": "https://github.com/saad-bhutto/database-dump",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Saad Bhutto",
+            "email": "saad@devkind.com.au",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^7.4|^8.0",
+        "illuminate/support": "^8.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^6.0",
+        "phpunit/phpunit": "^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SaadBhutto\\DatabaseDump\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SaadBhutto\\DatabaseDump\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "SaadBhutto\\DatabaseDump\\DatabaseDumpServiceProvider"
+            ]
+
+        }
+    }
+}

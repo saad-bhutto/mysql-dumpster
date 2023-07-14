@@ -8,47 +8,41 @@ use Illuminate\Support\Facades\Storage;
 
 class DatabaseDumpCommand extends Command
 {
+	protected $dumpFilePath = 'dump.sql';
+
 	protected $signature = 'db:dump';
 
 	protected $description = 'Generate a database dump with selected tables';
 
 	protected $whitelisted = [];
 
+	function __construct() {
+		parent::__construct();
+		$this->dumpFilePath = config('dumpster.filepath' , $this->dumpFilePath);
+	}
+
 	public function handle()
 	{
+		$from = $this->getFromConfig();
 		$this->table(
 			['KEYS', 'FROM', 'TO'],
 			[
-				[ "HOST" , env('DB_HOST') ,  env('TEST_DB_HOST')],
-				[ "PORT" , env('DB_PORT') ,  env('TEST_DB_PORT')],
-				[ "DATABASE" , env('DB_DATABASE') ,  env('TEST_DB_DATABASE')],
-				[ "USERNAME" , env('DB_USERNAME') ,  env('TEST_DB_USERNAME')],
+				[ "HOST" , $from['host'], env('TO_DB_HOST')],
+				[ "PORT" , $from['port'], env('TO_DB_PORT')],
+				[ "DATABASE" , $from['database'], env('TO_DB_DATABASE')],
+				[ "USERNAME" , $from['username'], env('TO_DB_USERNAME')],
 			]
 		);
-
-		$this->alert(' ================== Confirm  ================== ');
 
 		if (!$this->confirm('Are these details correct?')) {
 			return;
 		}
 
-		$whitelistedTables = DB::table('information_schema.tables')
-			->select('TABLE_NAME')
-			->where('TABLE_SCHEMA', config('database.connections.mysql.database'))
-			->whereIn('TABLE_NAME', $this->whitelisted)
-			->pluck('TABLE_NAME')
-			->toArray();
+		$whitelistedTables = $this->getWhitelistedTables();
 
-		$nonWhitelistedTables = DB::table('information_schema.tables')
-			->select('TABLE_NAME')
-			->where('TABLE_SCHEMA', config('database.connections.mysql.database'))
-			->whereNotIn('TABLE_NAME', $whitelistedTables)
-			->pluck('TABLE_NAME')
-			->toArray();
+		$nonWhitelistedTables = $this->getNonWhitelistedTables();
 
-		$dumpCommandWithData = 'mysqldump --host=' . config('database.connections.mysql.host') . ' --port=' . config('database.connections.mysql.port') .
-			' -u ' . config('database.connections.mysql.username') . ' -p' . config('database.connections.mysql.password') .
-			' --no-data=false ' . config('database.connections.mysql.database') . ' ' . implode(' ', $whitelistedTables);
+		$dumpCommandWithData = $this->getBaseFrombaseCommand($from) . ' --no-data=false ' . $from['database'] . ' ' . implode(' ', $whitelistedTables);
 
 		$dumpCommandWithoutData = 'mysqldump --host=' . config('database.connections.mysql.host') . ' --port=' . config('database.connections.mysql.port') .
 			' -u ' . config('database.connections.mysql.username') . ' -p' . config('database.connections.mysql.password') .
@@ -67,4 +61,64 @@ class DatabaseDumpCommand extends Command
 			$this->error('Failed to generate the dump file.');
 		}
 	}
+
+	protected function parseDatabaseUrl($databaseUrl)
+	{
+			$parsedUrl = parse_url($databaseUrl);
+
+			$databaseConfig = [
+					'host' => $parsedUrl['host'],
+					'port' => $parsedUrl['port'] ?? 3306,
+					'username' => $parsedUrl['user'],
+					'password' => $parsedUrl['pass'],
+					'database' => ltrim($parsedUrl['path'], '/')
+			];
+
+			return $databaseConfig;
+	}
+
+	/**
+	 * Getter funtion to get the config
+	 *
+	 */
+	protected function getFromConfig() {
+
+		$databaseConfig = env('DATABASE_URL') ? $this->parseDatabaseUrl(env('DATABASE_URL')) : [];
+
+		if(count($databaseConfig) != 0) return $databaseConfig;
+
+		return [
+			'host' => config('database.connections.mysql.host'),
+			'port' => config('database.connections.mysql.port') ?? 3306,
+			'username' => config('database.connections.mysql.database'),
+			'password' => config('database.connections.mysql.password'),
+			'database' => config('database.connections.mysql.database')
+		];
+	}
+
+	function dumpCommandWithData(array $from) {
+		$dumpCommandWithData = $this->getBaseFrombaseCommand($from) . ' --no-data=false ' . $from['database'] . ' ' . implode(' ', $this->getWhitelistedTables());
+		exec($dumpCommandWithData . ' > ' . $this->dumpFilePath);
+	}
+	function getWhitelistedTables() {
+		return DB::table('information_schema.tables')
+			->select('TABLE_NAME')
+			->where('TABLE_SCHEMA', config('database.connections.mysql.database'))
+			->whereIn('TABLE_NAME', $this->whitelisted)
+			->pluck('TABLE_NAME')
+			->toArray();
+
+	}
+	function getNonWhitelistedTables() {
+		return	$nonWhitelistedTables = DB::table('information_schema.tables')
+					->select('TABLE_NAME')
+					->where('TABLE_SCHEMA', config('database.connections.mysql.database'))
+					->whereNotIn('TABLE_NAME', $this->whitelisted)
+					->pluck('TABLE_NAME')
+					->toArray();
+	}
+	function getBaseFrombaseCommand(array $from) {
+		return 'mysqldump --host=' . $from['host'] . ' --port=' . $from['port'] . ' -u ' . $from['username'] . ' -p' . $from['password'];
+	}
+
 }
